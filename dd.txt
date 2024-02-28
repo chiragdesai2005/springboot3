@@ -1,0 +1,160 @@
+
+
+token
+
+ try {
+            // Read API endpoint URL from environment variable
+            String apiUrl = System.getenv("YOUR_API_ENDPOINT_URL_HERE");
+
+            if (apiUrl == null || apiUrl.isEmpty()) {
+                System.err.println("API endpoint URL environment variable not set.");
+                return;
+            }
+
+            // API endpoint URL
+            URL url = new URL(apiUrl);
+
+            // Open connection
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+            // Set request method
+            connection.setRequestMethod("POST");
+
+            // Set request headers
+            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+            // Enable output and input streams
+            connection.setDoOutput(true);
+            connection.setDoInput(true);
+
+            // Construct request body
+            String requestBody = "client_id=ABC&client_secret=ABC&scope=api&grant_type=client_credentials";
+
+            // Write request body to output stream
+            try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
+                byte[] requestBodyBytes = requestBody.getBytes(StandardCharsets.UTF_8);
+                outputStream.write(requestBodyBytes, 0, requestBodyBytes.length);
+                outputStream.flush();
+            }
+
+            // Get response code
+            int responseCode = connection.getResponseCode();
+            System.out.println("Response Code: " + responseCode);
+
+            // Read response body
+            StringBuilder responseBuilder = new StringBuilder();
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                String inputLine;
+                while ((inputLine = in.readLine()) != null) {
+                    responseBuilder.append(inputLine);
+                }
+            }
+
+            // Parse JSON response using Gson
+            JsonParser parser = new JsonParser();
+            JsonObject jsonResponse = parser.parse(responseBuilder.toString()).getAsJsonObject();
+
+            // Extract access_token
+            String accessToken = jsonResponse.get("access_token").getAsString();
+            System.out.println("Access Token: " + accessToken);
+
+            // Close connection
+            connection.disconnect();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class RestClient {
+
+    private static final Logger log = LogManager.getLogger(RestClient.class);
+
+    public List<List<Data>> callRestApi(String apiUrl, RequestBody requestBody) {
+        ResponseBody responseBody = null;
+        List<List<Data>> resultList = new ArrayList<>();
+        int offset = 0;
+
+        try {
+            boolean moreDataAvailable = true;
+
+            while (moreDataAvailable) {
+                // Update the offset for the next request
+                offset = offset + 1;
+                log.info("########### New API calls start with the offset: {}", offset);
+                // Set the offset in the request body
+                requestBody.getPageFilter().setOffset(offset);
+                // Construct the URL with parameters
+                URL url = new URL(apiUrl);
+
+                // Open connection and set request properties
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+
+                // Serialize request body to JSON
+                Gson gson = new Gson();
+                String jsonRequestBody = gson.toJson(requestBody);
+
+                // Write JSON request body to the connection's output stream
+                try (OutputStream os = conn.getOutputStream()) {
+                    byte[] input = jsonRequestBody.getBytes(StandardCharsets.UTF_8);
+                    os.write(input, 0, input.length);
+                }
+
+                // Get response code
+                int responseCode = conn.getResponseCode();
+                log.info("Response Code: {}", responseCode);
+
+                // Process response
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    try (BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                        StringBuilder response = new StringBuilder();
+                        String inputLine;
+                        while ((inputLine = in.readLine()) != null) {
+                            response.append(inputLine);
+                        }
+                        // Deserialize JSON response into Java object using Gson
+//                        log.info("API call response value is {}", response.toString());
+                        responseBody = gson.fromJson(response.toString(), ResponseBody.class);
+
+                        // Check if more data is available
+                        moreDataAvailable = responseBody.isMoreRowsExist();
+                        log.info("moreDataAvailable value is {}", moreDataAvailable);
+                        if (responseBody.getData() != null) {
+                            log.info("responseBody.getData().size() value is {}", responseBody.getData().size());
+                            resultList.add(responseBody.getData());
+                        }
+                    }
+                } else {
+                    log.error("Error in API call. Response code: {}", responseCode);
+                    moreDataAvailable = false; // Stop pagination on error
+                }
+
+                // Close the connection
+                conn.disconnect();
+            }
+        } catch (Exception e) {
+            log.error("Exception occurred", e);
+        }
+        return resultList;
+    }
+
+}
