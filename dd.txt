@@ -158,3 +158,56 @@ public class RestClient {
     }
 
 }
+
+
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.nio.charset.StandardCharsets;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+class RestClientTest {
+
+    // Mock JSON response for testing
+    private static final String MOCK_JSON_RESPONSE = "{\"access_token\":\"mock_access_token\"}";
+
+    @Test
+    void testRestClient() {
+        // Mock HttpURLConnection
+        HttpURLConnection mockedConnection = Mockito.mock(HttpURLConnection.class);
+
+        try {
+            // Mock input stream with JSON response
+            InputStream mockInputStream = new ByteArrayInputStream(MOCK_JSON_RESPONSE.getBytes(StandardCharsets.UTF_8));
+
+            // Set up mocked HttpURLConnection behavior
+            when(mockedConnection.getResponseCode()).thenReturn(200);
+            when(mockedConnection.getInputStream()).thenReturn(mockInputStream);
+
+            // Mock RestClient
+            RestClient restClient = new RestClient() {
+                @Override
+                protected HttpURLConnection openConnection(String apiUrl) throws Exception {
+                    return mockedConnection;
+                }
+            };
+
+            // Call the method under test
+            String accessToken = restClient.getAccessToken();
+
+            // Verify that the access token is correctly extracted from the mocked JSON response
+            assertEquals("mock_access_token", accessToken);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
