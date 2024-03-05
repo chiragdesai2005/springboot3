@@ -1,213 +1,332 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com.example</groupId>
+	<artifactId>demo</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>demo</name>
+	<description>Demo project for Spring Boot</description>
+	<properties>
+		<java.version>11</java.version>
+		<spring-boot.version>2.6.0</spring-boot.version>
+		<maven.compiler.source>11</maven.compiler.source>
+		<maven.compiler.target>11</maven.compiler.target>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+			<version>${spring-boot.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.google.code.gson</groupId>
+			<artifactId>gson</artifactId>
+			<version>2.8.8</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<version>${spring-boot.version}</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<version>${spring-boot.version}</version>
+				<configuration>
+					<image>
+						<builder>paketobuildpacks/builder:jdk11</builder>
+					</image>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>
 
 
-token
+package com.example.demo;
 
- try {
-            // Read API endpoint URL from environment variable
-            String apiUrl = System.getenv("YOUR_API_ENDPOINT_URL_HERE");
+import org.example.demo.Response;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
-            if (apiUrl == null || apiUrl.isEmpty()) {
-                System.err.println("API endpoint URL environment variable not set.");
-                return;
-            }
-
-            // API endpoint URL
-            URL url = new URL(apiUrl);
-
-            // Open connection
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-            // Set request method
-            connection.setRequestMethod("POST");
-
-            // Set request headers
-            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-
-            // Enable output and input streams
-            connection.setDoOutput(true);
-            connection.setDoInput(true);
-
-            // Construct request body
-            String requestBody = "client_id=ABC&client_secret=ABC&scope=api&grant_type=client_credentials";
-
-            // Write request body to output stream
-            try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
-                byte[] requestBodyBytes = requestBody.getBytes(StandardCharsets.UTF_8);
-                outputStream.write(requestBodyBytes, 0, requestBodyBytes.length);
-                outputStream.flush();
-            }
-
-            // Get response code
-            int responseCode = connection.getResponseCode();
-            System.out.println("Response Code: " + responseCode);
-
-            // Read response body
-            StringBuilder responseBuilder = new StringBuilder();
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
-                String inputLine;
-                while ((inputLine = in.readLine()) != null) {
-                    responseBuilder.append(inputLine);
-                }
-            }
-
-            // Parse JSON response using Gson
-            JsonParser parser = new JsonParser();
-            JsonObject jsonResponse = parser.parse(responseBuilder.toString()).getAsJsonObject();
-
-            // Extract access_token
-            String accessToken = jsonResponse.get("access_token").getAsString();
-            System.out.println("Access Token: " + accessToken);
-
-            // Close connection
-            connection.disconnect();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+import java.util.UUID;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+@RestController
+public class MyController {
 
-public class RestClient {
+    @PostMapping("/api/data")
+    public Response postData(@RequestBody com.example.demo.Request requestBody) {
+        Response responseBody = new Response();
 
-    private static final Logger log = LogManager.getLogger(RestClient.class);
+        int maxLimit = 5000;
+        int limit = (requestBody.getPageFilter() != null && requestBody.getPageFilter().getLimit() > 0) ?
+                Math.min(requestBody.getPageFilter().getLimit(), maxLimit) : maxLimit;
 
-    public List<List<Data>> callRestApi(String apiUrl, RequestBody requestBody) {
-        ResponseBody responseBody = null;
-        List<List<Data>> resultList = new ArrayList<>();
-        int offset = 0;
+        int offset = (requestBody.getPageFilter() != null) ? requestBody.getPageFilter().getOffset() : 0;
 
-        try {
-            boolean moreDataAvailable = true;
+        // Generate random size of result data (e.g., 40000)
+        int dataSize = 40000;
 
-            while (moreDataAvailable) {
-                // Update the offset for the next request
-                offset = offset + 1;
-                log.info("########### New API calls start with the offset: {}", offset);
-                // Set the offset in the request body
-                requestBody.getPageFilter().setOffset(offset);
-                // Construct the URL with parameters
-                URL url = new URL(apiUrl);
-
-                // Open connection and set request properties
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
-
-                // Serialize request body to JSON
-                Gson gson = new Gson();
-                String jsonRequestBody = gson.toJson(requestBody);
-
-                // Write JSON request body to the connection's output stream
-                try (OutputStream os = conn.getOutputStream()) {
-                    byte[] input = jsonRequestBody.getBytes(StandardCharsets.UTF_8);
-                    os.write(input, 0, input.length);
-                }
-
-                // Get response code
-                int responseCode = conn.getResponseCode();
-                log.info("Response Code: {}", responseCode);
-
-                // Process response
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    try (BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-                        StringBuilder response = new StringBuilder();
-                        String inputLine;
-                        while ((inputLine = in.readLine()) != null) {
-                            response.append(inputLine);
-                        }
-                        // Deserialize JSON response into Java object using Gson
-//                        log.info("API call response value is {}", response.toString());
-                        responseBody = gson.fromJson(response.toString(), ResponseBody.class);
-
-                        // Check if more data is available
-                        moreDataAvailable = responseBody.isMoreRowsExist();
-                        log.info("moreDataAvailable value is {}", moreDataAvailable);
-                        if (responseBody.getData() != null) {
-                            log.info("responseBody.getData().size() value is {}", responseBody.getData().size());
-                            resultList.add(responseBody.getData());
-                        }
-                    }
-                } else {
-                    log.error("Error in API call. Response code: {}", responseCode);
-                    moreDataAvailable = false; // Stop pagination on error
-                }
-
-                // Close the connection
-                conn.disconnect();
-            }
-        } catch (Exception e) {
-            log.error("Exception occurred", e);
+        // If limit is not defined, return the first 5000 records with offset 0
+        if (limit <= 0) {
+            limit = maxLimit;
+            dataSize = Math.min(dataSize, limit); // Ensure dataSize doesn't exceed limit
+            offset = 0;
         }
-        return resultList;
+
+        // Set offset
+        responseBody.setOffset(offset);
+
+        // If offset is greater than or equal to 10, set moreRowsExist to false and return
+        if (offset >= 10) {
+            responseBody.setMoreRowsExist(false);
+            responseBody.setLimit(0); // Set limit to 0 when moreRowsExist is false
+            return responseBody;
+        }
+
+        // Set limit
+        responseBody.setLimit(limit);
+
+        // Determine the actual number of records to return
+        int recordsToReturn = Math.min(dataSize - offset, limit);
+
+        // Logic to generate data
+        List<Data> dataList = generateData(recordsToReturn);
+
+        responseBody.setData(dataList);
+
+        // Check if more rows exist
+        if (offset + limit < dataSize) {
+            responseBody.setMoreRowsExist(true);
+        } else {
+            responseBody.setMoreRowsExist(false);
+        }
+
+        return responseBody;
+    }
+
+    private List<Data> generateData(int numRecords) {
+        List<Data> dataList = new ArrayList<>();
+        Random random = new Random();
+        for (int i = 0; i < numRecords; i++) {
+            String uuid = UUID.randomUUID().toString();
+            Data data = new Data();
+            data.setRemovedCustomerCif("000XXXGV" + i + "S8.600");
+            data.setRemovedCustomerUuid(uuid);
+            data.setRemovedDateTime("2023-01-0" + i + "T00:00:00");
+            data.setRemovedReason("Reason-" + i);
+            dataList.add(data);
+        }
+        return dataList;
+    }
+
+
+
+
+}
+
+
+public class Request {
+
+    private String fromDate;
+    private String toDate;
+    private PageFilter pageFilter;
+
+    public String getFromDate() {
+        return fromDate;
+    }
+
+    public void setFromDate(String fromDate) {
+        this.fromDate = fromDate;
+    }
+
+    public String getToDate() {
+        return toDate;
+    }
+
+    public void setToDate(String toDate) {
+        this.toDate = toDate;
+    }
+
+    public PageFilter getPageFilter() {
+        return pageFilter;
+    }
+
+    public void setPageFilter(PageFilter pageFilter) {
+        this.pageFilter = pageFilter;
     }
 
 }
 
 
-import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.nio.charset.StandardCharsets;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
-class RestClientTest {
+import java.util.List;
 
-    // Mock JSON response for testing
-    private static final String MOCK_JSON_RESPONSE = "{\"access_token\":\"mock_access_token\"}";
+public class Response {
+    private int offset;
+    private int limit;
+    private boolean moreRowsExist;
+    private List<Data> data;
 
-    @Test
-    void testRestClient() {
-        // Mock HttpURLConnection
-        HttpURLConnection mockedConnection = Mockito.mock(HttpURLConnection.class);
+    public int getOffset() {
+        return offset;
+    }
 
-        try {
-            // Mock input stream with JSON response
-            InputStream mockInputStream = new ByteArrayInputStream(MOCK_JSON_RESPONSE.getBytes(StandardCharsets.UTF_8));
+    public void setOffset(int offset) {
+        this.offset = offset;
+    }
 
-            // Set up mocked HttpURLConnection behavior
-            when(mockedConnection.getResponseCode()).thenReturn(200);
-            when(mockedConnection.getInputStream()).thenReturn(mockInputStream);
+    public int getLimit() {
+        return limit;
+    }
 
-            // Mock RestClient
-            RestClient restClient = new RestClient() {
-                @Override
-                protected HttpURLConnection openConnection(String apiUrl) throws Exception {
-                    return mockedConnection;
-                }
-            };
+    public void setLimit(int limit) {
+        this.limit = limit;
+    }
 
-            // Call the method under test
-            String accessToken = restClient.getAccessToken();
+    public boolean isMoreRowsExist() {
+        return moreRowsExist;
+    }
 
-            // Verify that the access token is correctly extracted from the mocked JSON response
-            assertEquals("mock_access_token", accessToken);
+    public void setMoreRowsExist(boolean moreRowsExist) {
+        this.moreRowsExist = moreRowsExist;
+    }
 
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public List<Data> getData() {
+        return data;
+    }
+
+    public void setData(List<Data> data) {
+        this.data = data;
     }
 }
 
+public class PageFilter {
+
+    private int offset;
+    private int limit;
+
+    public int getLimit() {
+        return limit;
+    }
+
+    public void setLimit(int limit) {
+        this.limit = limit;
+    }
+
+    public int getOffset() {
+        return offset;
+    }
+
+    public void setOffset(int offset) {
+        this.offset = offset;
+    }
+}
+
+
+package com.example.demo;
+
+import java.util.List;
+
+public class Data {
+
+    private String removedCustomerCif;
+    private String removedCustomerUuid;
+    private String removedDateTime;
+    private String removedReason;
+
+    private List<CombinedHistory> combinedHistory;
+
+    public String getRemovedCustomerCif() {
+        return removedCustomerCif;
+    }
+
+    public void setRemovedCustomerCif(String removedCustomerCif) {
+        this.removedCustomerCif = removedCustomerCif;
+    }
+
+    public String getRemovedCustomerUuid() {
+        return removedCustomerUuid;
+    }
+
+    public void setRemovedCustomerUuid(String removedCustomerUuid) {
+        this.removedCustomerUuid = removedCustomerUuid;
+    }
+
+    public String getRemovedDateTime() {
+        return removedDateTime;
+    }
+
+    public void setRemovedDateTime(String removedDateTime) {
+        this.removedDateTime = removedDateTime;
+    }
+
+    public String getRemovedReason() {
+        return removedReason;
+    }
+
+    public void setRemovedReason(String removedReason) {
+        this.removedReason = removedReason;
+    }
+
+    public List<CombinedHistory> getCombinedHistory() {
+        return combinedHistory;
+    }
+
+    public void setCombinedHistory(List<CombinedHistory> combinedHistory) {
+        this.combinedHistory = combinedHistory;
+    }
+}
+
+
+package com.example.demo;
+
+public class CombinedHistory {
+
+    private String combinedCustomerCif;
+    private String combinedDateTime;
+
+    public String getCombinedCustomerCif() {
+        return combinedCustomerCif;
+    }
+
+    public void setCombinedCustomerCif(String combinedCustomerCif) {
+        this.combinedCustomerCif = combinedCustomerCif;
+    }
+
+    public String getCombinedDateTime() {
+        return combinedDateTime;
+    }
+
+    public void setCombinedDateTime(String combinedDateTime) {
+        this.combinedDateTime = combinedDateTime;
+    }
+}
+
+
+package com.example.demo;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class DemoApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(DemoApplication.class, args);
+	}
+
+}
